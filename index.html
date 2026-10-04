@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>Retro Rally 3D - Campeonato Definitivo</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            background-color: #0b0612;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;   /* arranca arriba, no centrado, para que quepa el scroll */
+            min-height: 100vh;
+            padding: 15px;
+            /* Antes: overflow:hidden bloqueaba bajar la página en celu/tablet.
+               overflow-y:auto hace aparecer la barra de scroll del navegador
+               cuando el contenido (juego + botones) no entra en pantalla. */
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            aspect-ratio: 16 / 9;
+            background: #000;
+            border: 4px solid #3a1d5d;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+            overflow: hidden;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .menu-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(12, 6, 20, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        h1 {
+            font-size: 2.4rem;
+            color: #ff0055;
+            text-shadow: 0 0 10px #ff0055, 0 0 20px #000;
+            margin-bottom: 15px;
+            font-family: monospace;
+            letter-spacing: 2px;
+        }
+
+        .menu-layout {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            max-width: 650px;
+            margin-bottom: 20px;
+        }
+
+        .controls-column {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .preview-column {
+            width: 170px;
+            height: 170px;
+            background: #150b24;
+            border: 2px solid #00ffcc;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+        }
+
+        #menuMapCanvas {
+            width: 130px;
+            height: 130px;
+            background: transparent;
+        }
+
+        .preview-title {
+            font-size: 0.75rem;
+            color: #00ffcc;
+            font-weight: bold;
+            margin-top: 5px;
+            font-family: monospace;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            text-align: left;
+        }
+
+        label {
+            font-size: 0.85rem;
+            color: #8a9ab0;
+            margin-bottom: 4px;
+            font-weight: bold;
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            background: #1e102f;
+            border: 2px solid #5c2e91;
+            color: white;
+            border-radius: 5px;
+            font-size: 0.95rem;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .btn {
+            padding: 12px 40px;
+            background: #00ffcc;
+            color: #0b0612;
+            border: none;
+            border-radius: 4px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.4);
+            transition: transform 0.1s, background 0.2s;
+        }
+
+        .btn:hover {
+            background: #ffffff;
+            transform: scale(1.03);
+        }
+
+        .go-reason {
+            font-size: 1.1rem;
+            color: #ffff00;
+            margin-bottom: 25px;
+            white-space: pre-line;
+            font-family: monospace;
+        }
+
+        #mobileControls {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 800px;
+            margin-top: 15px;
+            padding: 0 5px;
+        }
+
+        .touch-group {
+            display: flex;
+            gap: 15px;
+        }
+
+        .touch-btn {
+            width: 75px;
+            height: 75px;
+            background: rgba(255, 255, 255, 0.12);
+            border: 3px solid rgba(255, 255, 255, 0.35);
+            border-radius: 50%;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            font-family: monospace;
+            outline: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: none;              /* el dedo sobre el botón no scrollea ni hace zoom */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .touch-btn:active,
+        .touch-btn.active-touch {
+            background: rgba(0, 255, 204, 0.4) !important;
+            border-color: #00ffcc;
+            transform: scale(0.95);
+        }
+
+        .accel-btn { background: rgba(0, 200, 80, 0.25); font-size: 14px; }
+        .brake-btn { background: rgba(220, 20, 60, 0.25); font-size: 14px; }
+
+        /* ---- Segunda entrega ---- */
+        /* El menú ahora puede ser más alto que el juego en pantallas chicas: scroll interno en vez de cortarse.
+           Los margin:auto de primer/último hijo mantienen el contenido centrado cuando sí entra. */
+        .menu-overlay { justify-content: flex-start; overflow-y: auto; }
+        .menu-overlay > :first-child { margin-top: auto; }
+        .menu-overlay > :last-child { margin-bottom: auto; }
+        h1 { font-size: 2rem; margin-bottom: 10px; }
+        .form-row { display: flex; gap: 10px; }
+        .form-row .form-group { flex: 1; min-width: 0; }
+        .records-line { font-family: monospace; font-size: 0.8rem; color: #00ffcc; margin-bottom: 10px; }
+        .go-reason { font-size: 1rem; line-height: 1.35; margin-bottom: 18px; }
+        .pause-btn {
+            position: absolute; left: 8px; bottom: 8px; z-index: 5;
+            width: 34px; height: 34px; border-radius: 50%;
+            background: rgba(255, 255, 255, 0.12); border: 2px solid rgba(255, 255, 255, 0.35);
+            color: #fff; font: bold 13px monospace; cursor: pointer; touch-action: manipulation;
+        }
+        .btn-row { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
+        .btn-secondary { background: transparent !important; color: #00ffcc !important; border: 2px solid #00ffcc; box-shadow: none !important; padding: 10px 28px; }
+        .btn-secondary:hover { background: #00ffcc !important; color: #0b0612 !important; }
+        .go-reason { white-space: pre-line; font-family: monospace; }
+        .pause-btn:hover { background: rgba(0, 255, 204, 0.3); }
+    </style>
+</head>
+<body>
+
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <button id="btnPause" class="pause-btn" onclick="togglePause()" title="Pausa (P / Esc)">II</button>
+
+        <div id="menuStart" class="menu-overlay">
+            <h1>RETRO RALLY 3D</h1>
+            
+            <div class="menu-layout">
+                <div class="controls-column">
+                    <div class="form-group">
+                        <label for="selectTrack">CIRCUITO COMPETITIVO:</label>
+                        <select id="selectTrack" onchange="updateMenuTrackPreview(); updateMenuRecords()">
+                            <option value="0">Circuito del Lazo Completo</option>
+                            <option value="1">Suzuka GP (Técnico)</option>
+                            <option value="2">Mónaco Street (Urbano)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="selectVehicle">VEHÍCULO:</label>
+                            <select id="selectVehicle" onchange="updateMenuRecords()">
+                                <option value="0">VW Escarabajo</option>
+                                <option value="1">Coupé GT</option>
+                                <option value="2">V12 Hypercar</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="selectDifficulty">DIFICULTAD IA:</label>
+                            <select id="selectDifficulty">
+                                <option value="0">Fácil</option>
+                                <option value="1" selected>Media</option>
+                                <option value="2">Difícil</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="selectWeather">CLIMA:</label>
+                            <select id="selectWeather" onchange="updateMenuRecords()">
+                                <option value="0">Despejado</option>
+                                <option value="1">Lluvia</option>
+                                <option value="2">Nieve</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="selectVoice">COPILOTO:</label>
+                            <select id="selectVoice">
+                                <option value="0" selected>Voz + texto</option>
+                                <option value="1">Solo texto</option>
+                                <option value="2">Apagado</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="selectMusic">MÚSICA:</label>
+                            <select id="selectMusic">
+                                <option value="1" selected>Sí</option>
+                                <option value="0">No</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="preview-column">
+                    <canvas id="menuMapCanvas" width="130" height="130"></canvas>
+                    <div class="preview-title">MAPA GEOMÉTRICO</div>
+                </div>
+            </div>
+
+            <div id="menuRecords" class="records-line"></div>
+            <button id="btnStartRace" class="btn">EMPEZAR CARRERA</button>
+        </div>
+
+        <div id="menuGameOver" class="menu-overlay hidden">
+            <h1 id="goTitle">FIN DE CARRERA</h1>
+            <div id="goReason" class="go-reason">Calculando tiempos...</div>
+            <div class="btn-row">
+                <button id="btnRetry" onclick="retryRace()" class="btn">REINTENTAR</button>
+                <button onclick="resetRaceState()" class="btn btn-secondary">VOLVER AL MENÚ</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="mobileControls">
+        <div class="touch-group">
+            <button class="touch-btn" data-key="left">◀</button>
+            <button class="touch-btn" data-key="right">▶</button>
+        </div>
+
+        <div class="touch-group">
+            <button class="touch-btn brake-btn" data-key="down">FRENO</button>
+            <button class="touch-btn accel-btn" data-key="up">GAS</button>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+    <script>
+        // Controles táctiles con Pointer Events: soportan MULTITÁCTIL de verdad,
+        // así podés acelerar (GAS) y doblar (◀/▶) al mismo tiempo.
+        //
+        // Por qué el arreglo anterior fallaba: los botones tenían onmousedown/onmouseup
+        // ADEMÁS de ontouch*. En móvil, el navegador simula un evento de mouse por cada
+        // toque, pero el mouse simulado solo sigue UN punto. Al tocar una flecha con el
+        // segundo dedo, se disparaba el 'mouseup' del GAS y el auto dejaba de acelerar.
+        // Pointer Events maneja cada dedo por separado con su propio pointerId.
+        (function () {
+            const buttons = document.querySelectorAll('#mobileControls .touch-btn');
+
+            buttons.forEach(function (btn) {
+                const key = btn.getAttribute('data-key');
+
+                function press(e) {
+                    e.preventDefault();
+                    if (window.pressTouchKey) window.pressTouchKey(key);
+                    btn.classList.add('active-touch');
+                    // Capturar el puntero: garantiza que ESTE botón reciba el 'up'
+                    // aunque el dedo se deslice fuera antes de soltar.
+                    if (e.pointerId != null && btn.setPointerCapture) {
+                        try { btn.setPointerCapture(e.pointerId); } catch (_) {}
+                    }
+                }
+                function release(e) {
+                    if (e) e.preventDefault();
+                    if (window.releaseTouchKey) window.releaseTouchKey(key);
+                    btn.classList.remove('active-touch');
+                }
+
+                btn.addEventListener('pointerdown', press);
+                btn.addEventListener('pointerup', release);
+                btn.addEventListener('pointercancel', release);
+                btn.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+            });
+
+            // Si la pestaña pierde el foco (llamada, cambio de app), soltar todo
+            // para que no quede ninguna tecla trabada.
+            window.addEventListener('blur', function () {
+                if (!window.releaseTouchKey) return;
+                buttons.forEach(function (b) {
+                    b.classList.remove('active-touch');
+                    window.releaseTouchKey(b.getAttribute('data-key'));
+                });
+            });
+        })();
+    </script>
+</body>
+</html>
